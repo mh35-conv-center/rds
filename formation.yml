@@ -1,0 +1,505 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: RDS template
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: Network settings
+        Parameters:
+          - VpcStack
+      -
+        Label:
+          default: Database settings
+        Parameters:
+          - DbInstanceType
+          - Charset
+          - Timezone
+          - Username
+          - DatabaseName
+      -
+        Label:
+          default: Cost settings
+        Parameters:
+          - CostTagName
+Parameters:
+  VpcStack:
+    Type: String
+    Description: VPC stack name
+  DbInstanceType:
+    Type: String
+    Description: Database instance type
+    AllowedValues:
+      - db.t2.micro
+      - db.t2.small
+      - db.t2.medium
+      - db.t2.large
+      - db.t2.xlarge
+      - db.t2.2xlarge
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.t3.large
+      - db.t3.xlarge
+      - db.t3.2xlarge
+      - db.m4.large
+      - db.m4.xlarge
+      - db.m4.2xlarge
+      - db.m4.4xlarge
+      - db.m4.10xlarge
+      - db.m4.16xlarge
+      - db.m5.large
+      - db.m5.xlarge
+      - db.m5.2xlarge
+      - db.m5.4xlarge
+      - db.m5.8xlarge
+      - db.m5.12xlarge
+      - db.m5.16xlarge
+      - db.m5.24xlarge
+      - db.m6g.large
+      - db.m6g.xlarge
+      - db.m6g.2xlarge
+      - db.m6g.8xlarge
+      - db.m6g.12xlarge
+      - db.m6g.16xlarge
+      - db.r4.large
+      - db.r4.xlarge
+      - db.r4.2xlarge
+      - db.r4.4xlarge
+      - db.r4.8xlarge
+      - db.r4.16xlarge
+      - db.r5.large
+      - db.r5.xlarge
+      - db.r5.2xlarge
+      - db.r5.4xlarge
+      - db.r5.8xlarge
+      - db.r5.12xlarge
+      - db.r5.16xlarge
+      - db.r5.24xlarge
+      - db.r6g.large
+      - db.r6g.xlarge
+      - db.r6g.2xlarge
+      - db.r6g.4xlarge
+      - db.r6g.8xlarge
+      - db.r6g.12xlarge
+      - db.r6g.16xlarge
+    Default: db.t3.medium
+  Charset:
+    Type: String
+    Description: Character set for Aurora database
+    Default: utf8mb4
+  Timezone:
+    Type: String
+    Description: Timezone for Aurora database
+    Default: Asia/Tokyo
+  Username:
+    Type: String
+    Description: Username of Aurora database
+  DatabaseName:
+    Type: String
+    Description: Database name of Aurora database
+  CostTagName:
+    Type: String
+    Description: Cost tag name
+    Default: ''
+Conditions:
+  HasCostTag:
+    Fn::Not:
+      - !Equals
+        - !Ref CostTagName
+        - ''
+Resources:
+  SubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Join
+        - ' '
+        - - !Ref AWS::StackName
+          - database subnet group
+      SubnetIds:
+        Fn::Split:
+          - ','
+          - Fn::ImportValue: !Join
+            - ':'
+            - - !Ref VpcStack
+              - PrivateSubnets
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - SubnetGroup
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  SourceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Database connect source security group
+      VpcId:
+        Fn::ImportValue: !Join
+          - ':'
+          - - !Ref VpcStack
+            - VpcId
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - SourceSecurityGroup
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  ProxySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Database proxy security group
+      VpcId:
+        Fn::ImportValue: !Join
+          - ':'
+          - - !Ref VpcStack
+            - VpcId
+      SecurityGroupIngress:
+        -
+          SourceSecurityGroupId: !Ref SourceSecurityGroup
+          Description: Database connection
+          IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - ProxySecurityGroup
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Database security group
+      VpcId:
+        Fn::ImportValue: !Join
+          - ':'
+          - - !Ref VpcStack
+            - VpcId
+      SecurityGroupIngress:
+        -
+          SourceSecurityGroupId: !Ref SourceSecurityGroup
+          Description: Database connection
+          IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+        -
+          SourceSecurityGroupId: !Ref ProxySecurityGroup
+          Description: Proxy connection
+          IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - SourceSecurityGroup
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  DatabaseClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Description: Aurora cluster parameter group
+      Family: aurora-mysql5.7
+      Parameters:
+        time_zone: !Ref Timezone
+        character_set_server: !Ref Charset
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - ClusterParameterGroup
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  DatabaseParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: Aurora parameter group
+      Family: aurora-mysql5.7
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - ParameterGroup
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      GenerateSecretString:
+        GenerateStringKey: password
+        PasswordLength: 16
+        SecretStringTemplate: !Join
+          - ''
+          - - '{"username":"'
+            - !Ref Username
+            - '"}'
+        ExcludeCharacters: "\"@/\\"
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - DbSecret
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  DbCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      BackupRetentionPeriod: 7
+      DatabaseName: !Ref DatabaseName
+      DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
+      DBSubnetGroupName: !Ref SubnetGroup
+      Engine: aurora-mysql
+      EngineMode: provisioned
+      MasterUsername: !Ref Username
+      MasterUserPassword: !Join
+        - ''
+        - - '{{resolve:secretsmanager:'
+          - !Ref DbSecret
+          - ':SecretString:password::}}'
+      VpcSecurityGroupIds: !Ref DatabaseSecurityGroup
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - DbCluster
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  DbInstance1:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: !Ref DbInstanceType
+      Engine: aurora-mysql
+      DBParameterGroupName: !Ref DatabaseParameterGroup
+      DBSubnetGroupName: !Ref SubnetGroup
+      PubliclyAccessible: false
+      DBClusterIdentifier: !Ref DbCluster
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - DbInstance1
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  DbInstance2:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: !Ref DbInstanceType
+      Engine: aurora-mysql
+      DBParameterGroupName: !Ref DatabaseParameterGroup
+      DBSubnetGroupName: !Ref SubnetGroup
+      PubliclyAccessible: false
+      DBClusterIdentifier: !Ref DbCluster
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - DbInstance2
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  ClusterSecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref DbSecret
+      TargetId: !Ref DbCluster
+      TargetType: AWS::RDS::DBCluster
+  RdsProxyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowGetSecretValue
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Ref ClusterSecretAttachment
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - RDSProxyRole
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  RdsProxy:
+    Type: AWS::RDS::DBProxy
+    Properties:
+      DBProxyName: !Join
+        - '-'
+        - - !Ref AWS::StackName
+          - rdsProxy
+      EngineFamily: MYSQL
+      RoleArn: !GetAtt RdsProxyRole.Arn
+      Auth:
+        - AuthScheme: SECRETS
+          SecretArn: !Ref ClusterSecretAttachment
+          IAMAuth: DISABLED
+      VpcSecurityGroupIds:
+        - !Ref ProxySecurityGroup
+      VpcSubnetIds:
+        Fn::Split:
+          - ','
+          - Fn::ImportValue: !Join
+            - ':'
+            - - !Ref VpcStack
+              - PrivateSubnets
+      Tags:
+        -
+          Key: Name
+          Value: !Join
+            - '-'
+            - -
+                Fn::If:
+                  - HasCostTag
+                  - !Ref CostTagName
+                  - !Ref AWS::StackName
+              - RDSProxy
+        -
+          Key: CostTag
+          Value:
+            Fn::If:
+              - HasCostTag
+              - !Ref CostTagName
+              - !Ref AWS::StackName
+  RdsProxyTargetGroup:
+    Type: AWS::RDS::DBProxyTargetGroup
+    DependsOn:
+      - DbInstance1
+      - DbInstance2
+    Properties:
+      DBProxyName: !Ref RdsProxy
+      DBClusterIdentifiers:
+        - !Ref DbCluster
+      TargetGroupName: default
