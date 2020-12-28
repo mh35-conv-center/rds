@@ -503,3 +503,52 @@ Resources:
       DBClusterIdentifiers:
         - !Ref DbCluster
       TargetGroupName: default
+Outputs:
+  SourceSecurityGroupName:
+    Value: !Ref SourceSecurityGroup
+    Description: Source security group name
+    Export:
+      Name: !Join
+        - ':'
+        - - !Ref AWS::StackName
+          - SourceSecurityGroupName
+  DbSecretArn:
+    Value: !Ref DbSecret
+    Description: Database secret ARN
+    Export:
+      Name: !Join
+        - ':'
+        - - !Ref AWS::StackName
+          - DbSecretArn
+  DbClusterName:
+    Value: !Ref DbCluster
+    Description: Database cluster name
+    Export:
+      Name: !Join
+        - ':'
+        - - !Ref AWS::StackName
+          - DbClusterName
+  DbClusterEndpoint:
+    Value: !GetAtt DbCluster.Endpoint.Address
+    Description: Database cluster endpoint address
+    Export:
+      Name: !Join
+        - ':'
+        - - !Ref AWS::StackName
+          - DbClusterEndpoint
+  DbClusterReadEndpoint:
+    Value: !GetAtt DbCluster.ReadEndpoint.Address
+    Description: Database cluster read endpoint address
+    Export:
+      Name: !Join
+        - ':'
+        - - !Ref AWS::StackName
+          - DbClusterReadEndpoint
+  DbProxyEndpoint:
+    Value: !GetAtt RdsProxy.Endpoint
+    Description: Database proxy endpoint address
+    Export:
+      Name: !Join
+        - ':'
+        - - AWS::StackName
+          - RdsProxyEndpoint
